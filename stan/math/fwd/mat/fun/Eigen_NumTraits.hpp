@@ -17,36 +17,45 @@ namespace Eigen {
     : GenericNumTraits<stan::math::fvar<T> > {
 
     enum {
+      /**
+       * stan::math::fvar requires initialization
+       */
       RequireInitialization = 1,
-      /**< stan::math::fvar requires initialization */
+
+      /**
+       * twice the cost to copy a double
+       */
       ReadCost = 2 * NumTraits<double>::ReadCost,
-      /**< twice the cost to copy a double */
+
+      /**
+       * 2 * AddCost
+       * <br>
+       * (a + b) = a + b
+       * <br>
+       * (a + b)' = a' + b'
+       */
       AddCost = 2 * NumTraits<T>::AddCost,
-      /**< 2 * AddCost <br>
-         (a + b) = a + b <br>
-         (a + b)' = a' + b' */
+
+      /**
+       * 3 * MulCost + AddCost
+       * <br>
+       * (a * b) = a * b
+       * <br>
+       * (a * b)' = a' * b + a * b'
+       */
       MulCost = 3 * NumTraits<T>::MulCost + NumTraits<T>::AddCost
-      /**< 3 * MulCost + AddCost <br>
-         (a * b) = a * b <br>
-         (a * b)' = a' * b + a * b' */
     };
+
+    /**
+     * Return the number of decimal digits that can be represented
+     * without change.  Delegates to
+     * <code>std::numeric_limits<double>::digits10()</code>. 
+     */
+    static int digits10() {
+      return std::numeric_limits<double>::digits10;
+    }
+
   };
 
-  namespace internal {
-    /**
-     * Implemented this for printing to stream.
-     */
-    template<typename T>
-    struct significant_decimals_default_impl<stan::math::fvar<T>, false> {
-      static inline int run() {
-        using std::ceil;
-        using std::log;
-        return cast<double, int>
-          (ceil(-log(std::numeric_limits<double>::epsilon())
-                / log(10.0)));
-      }
-    };
-
-  }
 }
 #endif

@@ -83,8 +83,7 @@ namespace stan {
        **/
       template<typename Rhs>
       inline const
-      Eigen::internal::solve_retval<Eigen::LDLT<Eigen::Matrix<double, R, C> >,
-                                    Rhs>
+      Eigen::Solve<Eigen::LDLT<Eigen::Matrix<double, R, C> >, Rhs>
       solve(const Eigen::MatrixBase<Rhs>& b) const {
         return alloc_->ldlt_.solve(b);
       }
