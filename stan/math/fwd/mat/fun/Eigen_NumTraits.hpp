@@ -54,7 +54,6 @@ namespace Eigen {
     static int digits10() {
       return std::numeric_limits<double>::digits10;
     }
-
   };
 
 }

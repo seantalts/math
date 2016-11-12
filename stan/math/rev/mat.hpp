@@ -20,7 +20,6 @@
 #include <stan/math/rev/mat/fun/divide.hpp>
 #include <stan/math/rev/mat/fun/dot_product.hpp>
 #include <stan/math/rev/mat/fun/dot_self.hpp>
-#include <stan/math/rev/mat/fun/Eigen_NumTraits.hpp>
 #include <stan/math/rev/mat/fun/grad.hpp>
 #include <stan/math/rev/mat/fun/initialize_variable.hpp>
 #include <stan/math/rev/mat/fun/LDLT_alloc.hpp>

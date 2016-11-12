@@ -52,7 +52,7 @@ namespace Eigen {
        * stan::math::var does not require initialization.
        */
       RequireInitialization = 0,
-      
+
       /**
        * Twice the cost of copying a double.
        */
@@ -79,14 +79,13 @@ namespace Eigen {
     static int digits10() {
       return std::numeric_limits<double>::digits10;
     }
-
   };
 
   namespace internal {
 
     /**
-     * Scalar product traits override for Eigen for automatic
-     * gradient variables.
+     * Scalar product traits specialization for Eigen for reverse-mode
+     * autodiff variables.
      */
     template <>
     struct scalar_product_traits<stan::math::var, double> {
@@ -94,106 +93,167 @@ namespace Eigen {
     };
 
     /**
-     * Scalar product traits override for Eigen for automatic
-     * gradient variables.
+     * Scalar product traits specialization for Eigen for reverse-mode
+     * autodiff variables.
      */
     template <>
     struct scalar_product_traits<double, stan::math::var> {
       typedef stan::math::var ReturnType;
     };
 
-    // /**
-    //  * Override matrix-vector and matrix-matrix products to use
-    //  * more efficient implementation.
-    //  */
-    // template <typename Index, typename LhsMapper, bool ConjugateLhs,
-    //           bool ConjugateRhs, typename RhsMapper, int Version>
-    // struct general_matrix_vector_product<Index, stan::math::var, LhsMapper,
-    //                                      ColMajor, ConjugateLhs,
-    //                                      stan::math::var, RhsMapper,
-    //                                      ConjugateRhs, Version> {
-      
-    //   typedef stan::math::var LhsScalar;
-    //   typedef stan::math::var RhsScalar;
-    //   typedef stan::math::var ResScalar;
-    //   enum { LhsStorageOrder = ColMajor };
+    /**
+     * Specialization of matrix-vector products for reverse-mode
+     * autodiff variables.
+     *
+     * @tparam Index index type
+     * @tparam LhsMapper left-hand side data and stride
+     * @tparam CongjuageLhs left-hand side conjugacy flag
+     * @tparam CongjuageRhs right-hand side conjugacy flag
+     * @tparam RhsMapper right-hand side data and stride
+     * @tparam Version integer version number
+     */
+    template <typename Index, typename LhsMapper, bool ConjugateLhs,
+              bool ConjugateRhs, typename RhsMapper, int Version>
+    struct general_matrix_vector_product<Index, stan::math::var, LhsMapper,
+                                         ColMajor, ConjugateLhs,
+                                         stan::math::var, RhsMapper,
+                                         ConjugateRhs, Version> {
+      typedef stan::math::var LhsScalar;
+      typedef stan::math::var RhsScalar;
+      typedef stan::math::var ResScalar;
+      enum { LhsStorageOrder = ColMajor };
 
-    //   EIGEN_DONT_INLINE static void 
-    //   run(Index rows, Index cols, const LhsScalar* lhs, Index lhsStride,
-    //       const RhsScalar* rhs, Index rhsIncr, ResScalar* res, Index resIncr,
-    //       const ResScalar &alpha) {
-    //     using stan::math::var;
-    //     using stan::math::gevv_vvv_vari;
-    //     for (Index i = 0; i < rows; ++i) {
-    //       res[i * resIncr]
-    //         += var(new gevv_vvv_vari(&alpha, &lhs[i], lhsStride, 
-    //                                  rhs, rhsIncr, cols));
-    //     }
-    //   }
-    // };
+      EIGEN_DONT_INLINE static void
+      run(Index rows, Index cols,
+          const LhsMapper& lhsMapper,
+          const RhsMapper& rhsMapper,
+          ResScalar* res, Index resIncr,
+          const ResScalar &alpha) {
+        const LhsScalar* lhs = lhsMapper.data();
+        const Index lhsStride = lhsMapper.stride();
+        const RhsScalar* rhs = rhsMapper.data();
+        const Index rhsIncr = rhsMapper.stride();
+        run(rows, cols, lhs, lhsStride, rhs, rhsIncr, res, resIncr, alpha);
+      }
 
-    // template <typename Index, typename LhsMapper, bool ConjugateLhs,
-    //           bool ConjugateRhs, typename RhsMapper, int Version>
-    // struct general_matrix_vector_product<Index, stan::math::var, LhsMapper,
-    //                                      RowMajor, ConjugateLhs,
-    //                                      stan::math::var, RhsMapper,
-    //                                      ConjugateRhs, Version> {
-    //   typedef stan::math::var LhsScalar;
-    //   typedef stan::math::var RhsScalar;
-    //   typedef stan::math::var ResScalar;
-    //   enum { LhsStorageOrder = RowMajor };
+      EIGEN_DONT_INLINE static void
+      run(Index rows, Index cols,
+          const LhsScalar* lhs, Index lhsStride,
+          const RhsScalar* rhs, Index rhsIncr,
+          ResScalar* res, Index resIncr,
+          const ResScalar &alpha) {
+        using stan::math::var;
+        using stan::math::gevv_vvv_vari;
+        for (Index i = 0; i < rows; ++i) {
+          res[i * resIncr]
+            += var(new gevv_vvv_vari(&alpha, &lhs[i], lhsStride,
+                                     rhs, rhsIncr, cols));
+        }
+      }
+    };
 
-    //   EIGEN_DONT_INLINE static void
-    //   run(Index rows, Index cols,
-    //       const LhsScalar* lhs, Index lhsStride,
-    //       const RhsScalar* rhs, Index rhsIncr,
-    //       ResScalar* res, Index resIncr, const RhsScalar &alpha) {
-    //     for (Index i = 0; i < rows; i++) {
-    //       res[i*resIncr]
-    //         += stan::math::var
-    //         (new stan::math::gevv_vvv_vari
-    //          (&alpha,
-    //           (static_cast<int>(LhsStorageOrder) == static_cast<int>(ColMajor))
-    //           ? (&lhs[i]) : (&lhs[i*lhsStride]),
-    //           (static_cast<int>(LhsStorageOrder) == static_cast<int>(ColMajor))
-    //           ? (lhsStride) : (1),
-    //           rhs, rhsIncr, cols));
-    //     }
-    //   }
-    // };
+    template <typename Index, typename LhsMapper, bool ConjugateLhs,
+              bool ConjugateRhs, typename RhsMapper, int Version>
+    struct general_matrix_vector_product<Index, stan::math::var, LhsMapper,
+                                         RowMajor, ConjugateLhs,
+                                         stan::math::var, RhsMapper,
+                                         ConjugateRhs, Version> {
+      typedef stan::math::var LhsScalar;
+      typedef stan::math::var RhsScalar;
+      typedef stan::math::var ResScalar;
+      enum { LhsStorageOrder = RowMajor };
 
-    // template <typename Index, int LhsStorageOrder, bool ConjugateLhs,
-    //           int RhsStorageOrder, bool ConjugateRhs>
-    // struct general_matrix_matrix_product<Index, stan::math::var,
-    //                                      LhsStorageOrder, ConjugateLhs,
-    //                                      stan::math::var, RhsStorageOrder,
-    //                                      ConjugateRhs, ColMajor> {
-    //   typedef stan::math::var LhsScalar;
-    //   typedef stan::math::var RhsScalar;
-    //   typedef stan::math::var ResScalar;
-    //   typedef const_blas_data_mapper<stan::math::var, Index, LhsStorageOrder> LhsMapper;
-    //   typedef const_blas_data_mapper<stan::math::var, Index, RhsStorageOrder> RhsMapper;
-    //   static void run(Index rows, Index cols, Index depth,
-    //                   const LhsScalar* lhs, Index lhsStride,
-    //                   const RhsScalar* rhs, Index rhsStride,
-    //                   ResScalar* res, Index resStride,
-    //                   const ResScalar &alpha,
-    //                   level3_blocking<LhsScalar, RhsScalar>& /* blocking */,
-    //                   GemmParallelInfo<Index>* /* info = 0 */) {
-    //     for (Index i = 0; i < cols; i++) {
-    //       general_matrix_vector_product<Index, LhsScalar, LhsMapper, LhsStorageOrder,
-    //                                     ConjugateLhs, RhsScalar, RhsMapper, ConjugateRhs>
-    //         ::run(rows, depth, lhs, lhsStride,
-    //               &rhs[static_cast<int>(RhsStorageOrder)
-    //                    == static_cast<int>(ColMajor)
-    //                    ? i * rhsStride : i],
-    //               static_cast<int>(RhsStorageOrder)
-    //               == static_cast<int>(ColMajor)
-    //               ? 1 : rhsStride,
-    //               &res[i * resStride], 1, alpha);
-    //     }
-    //   }
-    // };
+      EIGEN_DONT_INLINE static void
+      run(Index rows, Index cols,
+          const LhsMapper& lhsMapper,
+          const RhsMapper& rhsMapper,
+          ResScalar* res, Index resIncr,
+          const RhsScalar &alpha) {
+        const LhsScalar* lhs = lhsMapper.data();
+        const Index lhsStride = lhsMapper.stride();
+        const RhsScalar* rhs = rhsMapper.data();
+        const Index rhsIncr = rhsMapper.stride();
+        run(rows, cols, lhs, lhsStride, rhs, rhsIncr, res, resIncr, alpha);
+      }
+
+      EIGEN_DONT_INLINE static void
+      run(Index rows, Index cols,
+          const LhsScalar* lhs, Index lhsStride,
+          const RhsScalar* rhs, Index rhsIncr,
+          ResScalar* res, Index resIncr,
+          const RhsScalar &alpha) {
+        for (Index i = 0; i < rows; i++) {
+          res[i*resIncr]
+            += stan::math::var
+            (new stan::math::gevv_vvv_vari
+             (&alpha,
+              (static_cast<int>(LhsStorageOrder) == static_cast<int>(ColMajor))
+              ? (&lhs[i]) : (&lhs[i*lhsStride]),
+              (static_cast<int>(LhsStorageOrder) == static_cast<int>(ColMajor))
+              ? (lhsStride) : (1),
+              rhs, rhsIncr, cols));
+        }
+      }
+    };
+
+    template <typename Index, int LhsStorageOrder, bool ConjugateLhs,
+              int RhsStorageOrder, bool ConjugateRhs>
+    struct general_matrix_matrix_product<Index, stan::math::var,
+                                         LhsStorageOrder, ConjugateLhs,
+                                         stan::math::var, RhsStorageOrder,
+                                         ConjugateRhs, ColMajor> {
+      typedef stan::math::var LhsScalar;
+      typedef stan::math::var RhsScalar;
+      typedef stan::math::var ResScalar;
+
+      typedef gebp_traits<RhsScalar, LhsScalar> Traits;
+
+      typedef const_blas_data_mapper<stan::math::var, Index, LhsStorageOrder>
+      LhsMapper;
+      typedef const_blas_data_mapper<stan::math::var, Index, RhsStorageOrder>
+      RhsMapper;
+
+      EIGEN_DONT_INLINE
+      static void run(Index rows, Index cols, Index depth,
+                      const LhsScalar* lhs, Index lhsStride,
+                      const RhsScalar* rhs, Index rhsStride,
+                      ResScalar* res, Index resStride,
+                      const ResScalar &alpha,
+                      level3_blocking<LhsScalar, RhsScalar>& /* blocking */,
+                      GemmParallelInfo<Index>* /* info = 0 */) {
+        for (Index i = 0; i < cols; i++) {
+          general_matrix_vector_product<Index, LhsScalar, LhsMapper,
+                                        LhsStorageOrder,
+                                        ConjugateLhs, RhsScalar, RhsMapper,
+                                        ConjugateRhs>
+            ::run(rows, depth, lhs, lhsStride,
+                  &rhs[static_cast<int>(RhsStorageOrder)
+                       == static_cast<int>(ColMajor)
+                       ? i * rhsStride : i],
+                  static_cast<int>(RhsStorageOrder)
+                  == static_cast<int>(ColMajor)
+                  ? 1 : rhsStride,
+                  &res[i * resStride], 1, alpha);
+        }
+      }
+
+      EIGEN_DONT_INLINE
+      static void run(Index rows, Index cols, Index depth,
+                      const LhsMapper& lhsMapper,
+                      const RhsMapper& rhsMapper,
+                      ResScalar* res, Index resStride,
+                      const ResScalar &alpha,
+                      level3_blocking<LhsScalar, RhsScalar>& blocking,
+                      GemmParallelInfo<Index>* info = 0) {
+        const LhsScalar* lhs = lhsMapper.data();
+        const Index lhsStride = lhsMapper.stride();
+        const RhsScalar* rhs = rhsMapper.data();
+        const Index rhsStride = rhsMapper.stride();
+
+        run(rows, cols, depth, lhs, lhsStride, rhs, rhsStride, res, resStride,
+            alpha, blocking, info);
+      }
+    };
 
   }
 }
