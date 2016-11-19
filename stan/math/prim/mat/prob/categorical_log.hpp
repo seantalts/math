@@ -50,7 +50,7 @@ namespace stan {
     typename boost::math::tools::promote_args<T_prob>::type
     categorical_log(const std::vector<int>& ns,
                     const Eigen::Matrix<T_prob, Eigen::Dynamic, 1>& theta) {
-      return categorical_lpmf<T_prob>(ns, theta);
+      return categorical_lpmf<false>(ns, theta);
     }
 
   }
