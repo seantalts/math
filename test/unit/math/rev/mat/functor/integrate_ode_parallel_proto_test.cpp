@@ -46,16 +46,16 @@ namespace stan {
   namespace math {
 
     // very simple OpenMP
-    template <typename F, typename T0, typename T1, typename T3, typename T4>
-    std::vector<std::vector<typename boost::math::tools::promote_args<T0, T1, T3, T4>::type> >
+    template <typename F, typename T0, typename T4>
+    std::vector<std::vector<typename boost::math::tools::promote_args<T0, T4>::type> >
     integrate_ode_parallel(const F& f,
                            std::vector<std::vector<T0> >& y0,
-                           const std::vector<T1>& t0,
+                           const std::vector<double>& t0,
                            const std::vector<int>& M, // intended to
                                                       // code a ragged
                                                       // structure in
                                                       // ts at some point
-                           const std::vector<T3>& ts, // NOTE: take ts to
+                           const std::vector<double>& ts, // NOTE: take ts to
                            // be the same for all integrations,
                            // i.e. ignore M
                            const std::vector<std::vector<T4> >& theta,
@@ -64,7 +64,7 @@ namespace stan {
                            std::ostream* pstream__) {
       int O = y0.size(); // number of ODEs
       int exceptions = 0;
-      typedef std::vector<std::vector<typename boost::math::tools::promote_args<T0, T1, T3, T4>::type> > res_t;
+      typedef std::vector<std::vector<typename boost::math::tools::promote_args<T0, T4>::type> > res_t;
       res_t res;
 #pragma omp parallel
       {
