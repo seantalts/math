@@ -16,6 +16,15 @@
  * machine.
  */
 
+/*
+ * The two tests below are not real tests, but they demonstrate the
+ * performance of a serial approach vs a parallel OpenMP run. The
+ * example integrates for J subjects an oral 2cmt ODE model. Each
+ * subject has different parameter values, initials and different data
+ * x_r.
+ *
+ */
+
 #include <stan/math/rev/mat.hpp>
 #include <stan/math/rev/core.hpp>
 
@@ -61,7 +70,10 @@ namespace stan {
                            const std::vector<std::vector<T4> >& theta,
                            const std::vector<double>& x_r,
                            const std::vector<int>& x_i,
-                           std::ostream* pstream__) {
+                           std::ostream* pstream__,
+                           double rel_tol = 1E-10,
+                           double abs_tol = 1E-10,
+                           long int max_steps = 1E8) {
       int O = y0.size(); // number of ODEs
       int exceptions = 0;
       typedef std::vector<std::vector<typename boost::math::tools::promote_args<T0, T4>::type> > res_t;
@@ -69,7 +81,7 @@ namespace stan {
 #pragma omp parallel
       {
         //std::cout << "Hello from thread " <<  omp_get_thread_num() << ", nthreads " << omp_get_num_threads() << std::endl;
-      
+
 #pragma omp for schedule(static,1) ordered
         for(int o = 0; o < O; ++o) {
           std::vector<std::vector<double> > y_coupled;
@@ -78,7 +90,7 @@ namespace stan {
           try {
             if(exceptions == 0) {
               std::vector<double> xrun_r(1, x_r[o]);
-              y_coupled = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__);
+              y_coupled = stan::math::integrate_ode_bdf_bare(f, y0[o], t0[o], ts, theta[o], xrun_r, x_i, pstream__, rel_tol, abs_tol, max_steps);
             }
           } catch(const std::exception& e) {
             ++exceptions;
@@ -102,30 +114,42 @@ namespace stan {
 }
 
 
-
+// setup the basic problem to solve
 struct StanOde_parallel : public ::testing::Test {
   std::stringstream msgs;
+  // # of time-points
   int T;
   std::vector<double> ts;
+  // # of subjects
   int J;
+  // # of states of the ODE
+  int S;
+  // # of parameters
+  int P;
+  // for each subject a dose given at t=24
   std::vector<double> x_r;
+  // dummy data
   std::vector<int> x_int;
+  // initial time for each subject
   std::vector<double> t0;
+  // # of observations per subject (a vector of length J with entries
+  // T)
   std::vector<int> M;
+  // parameters per subject
   std::vector<std::vector<stan::math::var> > theta_v;
+  // initial per subject
   std::vector<std::vector<stan::math::var> > y0_v;
   oral_2cmt_ode_fun f_;
-  //plain_oral_2cmt_ode_fun f_ad_;
 
-  StanOde_parallel() : T(1000), J(1000), t0(J, -1), M(J, T) {
+  StanOde_parallel() : T(1000), J(1000), S(3), P(4), t0(J, -1), M(J, T) {
 
     boost::random::mt19937 rng;
 
     rng.seed(45656);
     const double sdlog = 10.;
-    
+
     for(int j = 0; j != J; ++j) {
-      std::vector<stan::math::var> run_theta_v(4);
+      std::vector<stan::math::var> run_theta_v(P);
 
       run_theta_v[0] = log(2.)/1   * stan::math::lognormal_rng(0, sdlog, rng);
       run_theta_v[1] = log(2.)/70. * stan::math::lognormal_rng(0, sdlog, rng);
@@ -134,7 +158,7 @@ struct StanOde_parallel : public ::testing::Test {
 
       theta_v.push_back(run_theta_v);
 
-      std::vector<stan::math::var> run_y0_v(3);
+      std::vector<stan::math::var> run_y0_v(S);
 
       run_y0_v[0] = stan::math::lognormal_rng(10, sdlog, rng);
       run_y0_v[1] = stan::math::lognormal_rng(-3, sdlog, rng);
@@ -173,6 +197,8 @@ TEST_F(StanOde_parallel, cvodes_2cmt_oral_serial) {
 TEST_F(StanOde_parallel, cvodes_2cmt_oral_parallel) {
 
   std::vector<std::vector<stan::math::var> > res;
-  
+
   res = stan::math::integrate_ode_parallel(f_, y0_v, t0, M, ts, theta_v, x_r, x_int, 0);
 }
+
+
