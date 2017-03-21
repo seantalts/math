@@ -2,6 +2,7 @@
 #define STAN_MATH_PRIM_SCAL_META_CONTAINER_VIEW_HPP
 
 #include <stan/math/prim/scal/meta/scalar_type.hpp>
+#include <stan/math/prim/scal/meta/ellided.hpp>
 #include <stdexcept>
 
 namespace stan {
@@ -24,7 +25,7 @@ namespace stan {
        * @param x object from which size is to be inferred
        * @param y underlying array 
        */
-      container_view(const T1& x, T2* y) : y_(y) { }
+      container_view(const T1& x) : y_(y) { }
 
       /**
        * operator[](int i) returns reference to view, 
@@ -42,25 +43,16 @@ namespace stan {
     };
 
     /**
-     * Empty struct for use in 
-     * boost\::condtional\<is_constant_struct\<T1\>\::value, T1, dummy\>\::type
-     * as false condtion for safe indexing 
-     *
-     */
-    struct dummy { };
-
-    /**
-     * Dummy type specialization, used in
-     * conjunction with struct dummy as 
+     * Ellided type specialization, used in
+     * conjunction with struct ellided as 
      * described above
      *
      * @tparam T2 type of scalar returned by view
      */
-    template <typename T2>
-    class container_view<dummy, T2> {
+    template <typename T1, typename T2>
+    class container_view<detail::ellided<T1>, T2> {
     public:
       typedef typename stan::scalar_type<T2>::type scalar_t;
-      template <typename T1>
 
       /**
        * Nothing initialized
@@ -68,7 +60,7 @@ namespace stan {
        * @param x input object
        * @param y underlying array 
        */
-      container_view(const T1& x, scalar_t* y) { }
+      container_view(const T1& x, T2 y) { }
 
       /**
        * operator[](int i)
@@ -77,7 +69,7 @@ namespace stan {
        * @throw std::out_of_range regardless of the input.
        */
       scalar_t operator[](int n) const {
-        throw std::out_of_range("can't access dummy elements.");
+        throw std::out_of_range("can't access ellided elements.");
       }
     };
   }
