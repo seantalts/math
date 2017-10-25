@@ -23,6 +23,14 @@ def runTests(String testPath) {
     sh "./runTests.py -j${env.PARALLEL} ${testPath} || echo ${testPath} failed"
 }
 
+def distributionTests() {
+    unstash 'MathSetup'
+    sh setupCC(false)
+    //runTests("test/prob")
+    sh 'git status'
+    retry(2) { junit 'test/**/*.xml' }
+}
+
 def updateUpstream(String upstreamRepo) {
     if (env.BRANCH_NAME == 'develop') {
         node('master') {
@@ -70,8 +78,8 @@ pipeline {
                     sh setupCC()
                     parallel(
                         CppLint: { sh "make cpplint" },
-                        dependencies: { sh 'make test-math-dependencies' } ,
-                        documentation: { sh 'make doxygen' },
+                        //dependencies: { sh 'make test-math-dependencies' } ,
+                        //documentation: { sh 'make doxygen' },
                         failFast: true
                     )
                 }
@@ -81,48 +89,50 @@ pipeline {
         stage('Tests') {
             failFast true
             parallel {
-                stage('Headers') {
-                    agent any
-                    steps { 
-                        unstash 'MathSetup'
-                        sh setupCC()
-                        sh "make -j${env.PARALLEL} test-headers"
-                    }
-                    post { always { deleteDir() } }
-                }
-                stage('Unit') {
-                    agent any
-                    steps {
-                        unstash 'MathSetup'
-                        sh setupCC()
-                        runTests("test/unit")
-                        retry(2) { junit 'test/**/*.xml' }
-                    }
-                    post { always { deleteDir() } }
-                }
-                stage('CmdStan Upstream Tests') {
-                    when { expression { env.BRANCH_NAME ==~ /PR-\d+/ } }
-                    steps {
-                        build(job: "CmdStan/${params.cmdstan_pr}",
-                                    parameters: [string(name: 'math_pr', value: env.BRANCH_NAME)])
-                    }
-                }
-                stage('Stan Upstream Tests') {
-                    when { expression { env.BRANCH_NAME ==~ /PR-\d+/ } }
-                    steps {
-                        build(job: "Stan/${params.stan_pr}",
-                                    parameters: [string(name: 'math_pr', value: env.BRANCH_NAME)])
-                    }
-                }
-                stage('Distribution tests') {
+                //stage('Headers') {
+                //    agent any
+                //    steps { 
+                //        unstash 'MathSetup'
+                //        sh setupCC()
+                //        sh "make -j${env.PARALLEL} test-headers"
+                //    }
+                //    post { always { deleteDir() } }
+                //}
+                //stage('Unit') {
+                //    agent any
+                //    steps {
+                //        unstash 'MathSetup'
+                //        sh setupCC()
+                //        runTests("test/unit")
+                //        retry(2) { junit 'test/**/*.xml' }
+                //    }
+                //    post { always { deleteDir() } }
+                //}
+                //stage('CmdStan Upstream Tests') {
+                //    when { expression { env.BRANCH_NAME ==~ /PR-\d+/ } }
+                //    steps {
+                //        build(job: "CmdStan/${params.cmdstan_pr}",
+                //                    parameters: [string(name: 'math_pr', value: env.BRANCH_NAME)])
+                //    }
+                //}
+                //stage('Stan Upstream Tests') {
+                //    when { expression { env.BRANCH_NAME ==~ /PR-\d+/ } }
+                //    steps {
+                //        build(job: "Stan/${params.stan_pr}",
+                //                    parameters: [string(name: 'math_pr', value: env.BRANCH_NAME)])
+                //    }
+                //}
+                stage('Distribution tests (No RowVectors)') {
                     agent { label "distribution-tests" }
-                    // XXX Add conditional back in so we don't run this if we haven't
-                    // changed code or makefiles
-                    steps { 
-                        unstash 'MathSetup'
-                        sh setupCC(false)
-                        runTests("test/prob")
-                        retry(2) { junit 'test/**/*.xml' }
+                    steps { distributionTests() }
+                    post { always { deleteDir() } }
+                }
+                stage('Full distribution tests') {
+                    agent { label "distribution-tests" }
+                    when { branch 'develop' }
+                    steps {
+                        sh "git revert -m1 997ae6e0a92128997ceb191901785e0827ffe000"
+                        distributionTests()
                     }
                     post { always { deleteDir() } }
                 }
@@ -140,9 +150,9 @@ pipeline {
         }
         success {
             updateUpstream('stan')
-            mailBuildResults("SUCCESSFUL")
+            //mailBuildResults("SUCCESSFUL")
         }
-        unstable { mailBuildResults("UNSTABLE", "stan-buildbot@googlegroups.com") }
-        failure { mailBuildResults("FAILURE", "stan-buildbot@googlegroups.com") }
+        //unstable { mailBuildResults("UNSTABLE", "stan-buildbot@googlegroups.com") }
+        //failure { mailBuildResults("FAILURE", "stan-buildbot@googlegroups.com") }
     }
 }
