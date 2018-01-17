@@ -30,24 +30,28 @@ def utils = new org.stan.Utils()
 
 def isBranch(String b) { env.BRANCH_NAME == b }
 
+def checkoutScm(String branch, String repo = "math") {
+    retry(3) {
+        checkout([$class: 'GitSCM',
+                branches: [[name: "*/${branch}"]],
+                doGenerateSubmoduleConfigurations: false,
+                extensions: [[$class: 'SubmoduleOption',
+                            disableSubmodules: false,
+                            parentCredentials: false,
+                            recursiveSubmodules: true,
+                            reference: '',
+                            trackingSubmodules: false]],
+                submoduleCfg: [],
+                userRemoteConfigs: [[url: "https://github.com/stan-dev/${repo}.git",
+                                    credentialsId: 'a630aebc-6861-4e69-b497-fd7f496ec46b'
+        ]]])
+    }
+}
+
 def updateUpstream(String upstreamRepo) {
     if (isBranch('develop')) {
         node('master') {
-            retry(3) {
-                checkout([$class: 'GitSCM',
-                        branches: [[name: '*/develop']],
-                        doGenerateSubmoduleConfigurations: false,
-                        extensions: [[$class: 'SubmoduleOption',
-                                    disableSubmodules: false,
-                                    parentCredentials: false,
-                                    recursiveSubmodules: true,
-                                    reference: '',
-                                    trackingSubmodules: false]],
-                        submoduleCfg: [],
-                        userRemoteConfigs: [[url: "git@github.com:stan-dev/${upstreamRepo}.git",
-                                           credentialsId: 'a630aebc-6861-4e69-b497-fd7f496ec46b'
-                ]]])
-            }
+            checkoutScm("develop", upstreamRepo)
             sh """
                 curl -O https://raw.githubusercontent.com/stan-dev/ci-scripts/master/jenkins/create-${upstreamRepo}-pull-request.sh
                 sh create-${upstreamRepo}-pull-request.sh
@@ -87,6 +91,23 @@ pipeline {
                 }
             }
         }
+        stage("Clang-format") {
+            agent any
+            steps {
+                sh "printenv"
+                checkoutScm(env.CHANGE_BRANCH)
+                sh """#!/bin/bash
+                    set -x
+                    clang-format --version;
+                    find stan test -name '*.hpp' -o -name '*.cpp' | xargs -n20 -P${env.PARALLEL} clang-format -i;
+                    if [[ `git diff` != "" ]]; then
+                        git add stan test;
+                        git commit -m \"[Jenkins] auto-formatting by `clang-format --version`\" --author="Stan Jenkins <mc.stanislaw@gmail.com>";
+                        git push origin ${env.CHANGE_BRANCH};
+                        exit 1 # this will kill this build and trigger a new one
+                    fi"""
+            }
+        }
         stage('Linting & Doc checks') {
             agent any
             steps {
@@ -97,22 +118,6 @@ pipeline {
                     sh setupCC()
                     parallel(
                         CppLint: { sh "make cpplint" },
-                        ClangFormat: {
-                            sh """
-                            clang-format --version
-                            set +x
-                            output=""
-                            for f in `find stan test -name '*.hpp' -o -name '*.cpp'`; 
-                            do 
-                              if [[ \$(clang-format -output-replacements-xml \$f | grep -c "<replacement ") != 0 ]];
-                              then
-                                output+="\$f is not formatted correctly according to clang-format\\n"
-                              fi
-                            done
-                            if [[ \$output != "" ]]; then
-                              echo \$output
-                              exit 1
-                            fi""" },
                         dependencies: { sh 'make test-math-dependencies' } ,
                         documentation: { sh 'make doxygen' },
                         failFast: true
