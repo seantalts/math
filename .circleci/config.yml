@@ -6,14 +6,14 @@ jobs:
     steps:
       - checkout
       - run: echo CC=g++ > make/local
-      - run: python runTests.py test/unit
+      - run: ./runTests.py -j2 test/unit
   build_gcc_latest:
     docker:
       - image: gcc:latest
     steps:
       - checkout
       - run: echo CC=g++ > make/local
-      - run: ./runTests.py test/unit
+      - run: ./runTests.py -j2 test/unit
       - checkout
 
 workflows:
