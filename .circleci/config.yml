@@ -5,13 +5,15 @@ jobs:
       - image: gcc:6
     steps:
       - checkout
+      - run: echo CC=g++ > make/local
       - run: python runTests.py test/unit
   build_gcc_latest:
     docker:
       - image: gcc:latest
     steps:
       - checkout
-      - run: python runTests.py test/unit
+      - run: echo CC=g++ > make/local
+      - run: ./runTests.py test/unit
       - checkout
 
 workflows:
